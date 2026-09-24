@@ -136,6 +136,24 @@ class PatientCreate(BaseModel):
     emergency_contact_name: Optional[str] = Field(default=None, max_length=101)
     emergency_contact_phone: Optional[str] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_empty_optional_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            optional_fields = {
+                "email",
+                "address_line_2",
+                "insurance_provider",
+                "insurance_member_id",
+                "preferred_language",
+                "emergency_contact_name",
+                "emergency_contact_phone",
+            }
+            for field in optional_fields:
+                if field in data and isinstance(data[field], str) and not data[field].strip():
+                    data[field] = None
+        return data
+
     # ── Field validators ──────────────────────────────────────────────────────
     @field_validator("first_name")
     @classmethod
@@ -203,6 +221,24 @@ class PatientUpdate(BaseModel):
     preferred_language: Optional[str] = None
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_empty_optional_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            optional_fields = {
+                "email",
+                "address_line_2",
+                "insurance_provider",
+                "insurance_member_id",
+                "preferred_language",
+                "emergency_contact_name",
+                "emergency_contact_phone",
+            }
+            for field in optional_fields:
+                if field in data and isinstance(data[field], str) and not data[field].strip():
+                    data[field] = None
+        return data
 
     @field_validator("first_name")
     @classmethod
