@@ -181,6 +181,27 @@ class TestCreatePatient:
         r = client.post("/api/v1/patients", json=payload)
         assert r.status_code == 201
 
+    def test_create_with_empty_strings_for_optional_fields(self, client, valid_payload):
+        payload = {
+            **valid_payload,
+            "phone_number": "4155550222",
+            "email": "",
+            "address_line_2": "",
+            "insurance_provider": "",
+            "insurance_member_id": "",
+            "preferred_language": "",
+            "emergency_contact_name": "",
+            "emergency_contact_phone": "",
+        }
+        r = client.post("/api/v1/patients", json=payload)
+        assert r.status_code == 201
+        data = r.json()["data"]
+        assert data["email"] is None
+        assert data["insurance_member_id"] is None
+        assert data["emergency_contact_phone"] is None
+        assert data["preferred_language"] == "English"
+
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 2. Reject invalid first_name
