@@ -1,0 +1,1713 @@
+below is the complete implementation plan. 
+Implement this plan phase-by-phase. After completing each phase, run the relevant tests/verification and report the result before continuing. Do not skip verification. Do not introduce additional architecture unless required. Use the assessment PDF as the source of truth.
+Before you implement the Vapi portion, instruct it to verify the current official Vapi documentation and adapt the implementation to the current September 2026 API
+After completing and testing each phase report it to the user. And wait for user approval to proceed to the next phase. If there is any mistake in the previous phases, correct it before proceeding to the next phase.                                                         
+
+Implementation Plan:
+# Voice AI Patient Registration
+
+## Complete Implementation Specification
+
+## 1. PROJECT OBJECTIVE
+
+Build a voice-based AI patient registration system that can be accessed through a real, dialable U.S. phone number.
+
+A caller should be able to call the number and naturally provide their demographic information through conversation.
+
+The system must:
+
+1. Answer an incoming phone call.
+2. Conduct a natural conversation with the caller.
+3. Collect required patient demographic information.
+4. Handle corrections, clarifications, different ways of saying information, and out-of-order information.
+5. Validate information.
+6. Re-prompt specifically when a field is invalid.
+7. Summarize all collected information before saving.
+8. Ask the caller for confirmation.
+9. Persist the confirmed patient record in a database.
+10. Expose patient records through a REST API.
+11. Preserve data across server restarts and subsequent calls.
+12. Support a second call where previously registered information can be recognized.
+13. Handle important failure cases gracefully.
+14. Be deployable and callable for evaluation.
+
+Do NOT build an over-engineered production healthcare platform.
+
+The goal is a reliable, understandable end-to-end technical assessment implementation.
+
+---
+
+# 2. ASSESSMENT REQUIREMENTS
+
+The system must satisfy the following core requirements.
+
+## Voice
+
+Use Vapi as the voice/telephony platform.
+
+The caller must be able to call a real U.S. phone number.
+
+The conversation must be natural rather than a rigid IVR flow.
+
+The agent must:
+
+* understand varied phrasing;
+* ask clarifying questions;
+* handle corrections;
+* handle information provided out of order;
+* validate required information;
+* specifically re-prompt invalid fields;
+* confirm all collected information before saving;
+* handle caller requests to start over;
+* gracefully handle database/API failures.
+
+## Database
+
+Use SQLite for the assessment implementation.
+
+Data must survive:
+
+* application restart;
+* server restart;
+* subsequent phone calls.
+
+Use SQLAlchemy for database access.
+
+## Backend
+
+Use:
+
+* Python
+* FastAPI
+* Pydantic
+* SQLAlchemy
+* SQLite
+
+Expose the required REST endpoints.
+
+## Voice-to-backend integration
+
+Vapi should call the FastAPI REST API after the caller confirms the patient information.
+
+Prefer Vapi's API Request Tool for the primary integration.
+
+Do not build a custom STT/TTS pipeline.
+
+---
+
+# 3. ARCHITECTURE
+
+Use the following architecture:
+
+Caller
+↓
+Vapi Phone Number
+↓
+Vapi Voice Assistant
+├── STT
+├── LLM
+├── TTS
+└── Conversation logic
+↓
+Vapi API Request Tool
+↓
+FastAPI Backend
+↓
+Patient Service Layer
+↓
+SQLAlchemy
+↓
+SQLite
+
+Separate responsibilities:
+
+Vapi:
+
+* telephony
+* speech recognition
+* speech generation
+* conversational orchestration
+* patient information collection
+* confirmation
+* API tool invocation
+
+FastAPI:
+
+* API endpoints
+* server-side validation
+* business logic
+* database interaction
+* API response formatting
+* error handling
+* logging
+
+SQLite:
+
+* persistent patient records
+
+---
+
+# 4. PROJECT STRUCTURE
+
+Create exactly this initial structure:
+
+voice-patient-registration/
+│
+├── app/
+│   ├── **init**.py
+│   ├── main.py
+│   │
+│   ├── api/
+│   │   ├── **init**.py
+│   │   └── patients.py
+│   │
+│   ├── core/
+│   │   ├── **init**.py
+│   │   └── config.py
+│   │
+│   ├── database/
+│   │   ├── **init**.py
+│   │   ├── database.py
+│   │   └── models.py
+│   │
+│   ├── schemas/
+│   │   ├── **init**.py
+│   │   └── patient.py
+│   │
+│   └── services/
+│       ├── **init**.py
+│       └── patient_service.py
+│
+├── voice/
+│   ├── system_prompt.md
+│   └── tools.md
+│
+├── tests/
+│   └── test_patients.py
+│
+├── .env
+├── .env.example
+├── .gitignore
+├── requirements.txt
+└── README.md
+
+Do not create unnecessary layers such as:
+
+* microservices
+* repositories
+* Redis
+* Celery
+* Kubernetes
+* vector databases
+* RAG
+* custom STT services
+* custom TTS services
+* frontend/dashboard
+
+unless absolutely required.
+
+---
+
+# 5. PATIENT DATA MODEL
+
+Implement the following patient fields.
+
+## Required
+
+### first_name
+
+Type:
+string
+
+Constraints:
+
+* 1–50 characters
+* alphabetic characters
+* allow hyphens
+* allow apostrophes
+
+Examples:
+John
+Mary-Anne
+O'Connor
+
+Reject clearly invalid values.
+
+---
+
+### last_name
+
+Type:
+string
+
+Constraints:
+
+* 1–50 characters
+* alphabetic characters
+* allow hyphens
+* allow apostrophes
+
+---
+
+### date_of_birth
+
+Type:
+date
+
+Requirements:
+
+* valid date
+* must not be in the future
+* expected conversational format: MM/DD/YYYY
+
+The API may internally serialize it as ISO format.
+
+---
+
+### sex
+
+Enum:
+
+Male
+Female
+Other
+Decline to Answer
+
+Do not invent additional values.
+
+---
+
+### phone_number
+
+Valid U.S. 10-digit phone number.
+
+Normalize the value before persistence where appropriate.
+
+Accept common conversational formats such as:
+
+"415 555 1234"
+
+"(415) 555-1234"
+
+"415-555-1234"
+
+But persist consistently.
+
+---
+
+### address_line_1
+
+Street address.
+
+---
+
+### city
+
+String.
+
+Constraints:
+
+* 1–100 characters
+
+---
+
+### state
+
+Valid two-letter U.S. state abbreviation.
+
+Examples:
+
+CA
+NY
+TX
+
+Validate against the actual U.S. state/territory abbreviation set appropriate for the assessment.
+
+---
+
+### zip_code
+
+Valid U.S. ZIP:
+
+12345
+
+or:
+
+12345-6789
+
+---
+
+# 6. OPTIONAL PATIENT FIELDS
+
+These fields should be supported:
+
+email
+address_line_2
+insurance_provider
+insurance_member_id
+preferred_language
+emergency_contact_name
+emergency_contact_phone
+
+Rules:
+
+* The voice agent does NOT need to ask every optional field on every call.
+* Required fields must be collected first.
+* The agent should offer optional information naturally.
+* The caller may decline optional fields.
+* preferred_language defaults to English.
+* insurance_member_id must be alphanumeric.
+* emergency_contact_phone must be a valid U.S. 10-digit phone number.
+
+Do not block registration simply because optional fields are missing.
+
+---
+
+# 7. AUTOMATIC FIELDS
+
+Create:
+
+patient_id
+created_at
+updated_at
+deleted_at
+
+patient_id:
+
+* UUID
+* generated by backend/database
+
+created_at:
+
+* UTC timestamp
+
+updated_at:
+
+* UTC timestamp
+
+deleted_at:
+
+* nullable UTC timestamp
+* used for soft deletion
+
+Do not physically delete patient records.
+
+---
+
+# 8. DATABASE IMPLEMENTATION
+
+Use SQLAlchemy.
+
+Create:
+
+app/database/database.py
+
+Responsibilities:
+
+* create SQLAlchemy engine
+* configure SQLite connection
+* create session factory
+* provide database dependency
+* initialize database tables
+
+Create:
+
+app/database/models.py
+
+Define Patient SQLAlchemy model.
+
+The database must enforce appropriate types and constraints where practical.
+
+Initialize tables when the application starts.
+
+Use:
+
+patients.db
+
+or equivalent persistent SQLite file.
+
+Do NOT store the database in an ephemeral deployment location if the selected hosting platform has an ephemeral filesystem.
+
+If the chosen hosting environment makes SQLite persistence unreliable, document the limitation and use a persistent volume or a suitable persistent database.
+
+---
+
+# 9. PYDANTIC SCHEMAS
+
+Create:
+
+app/schemas/patient.py
+
+Define at minimum:
+
+PatientCreate
+PatientUpdate
+PatientResponse
+
+Optionally:
+
+PatientListResponse
+ErrorResponse
+
+PatientCreate must validate all required fields.
+
+PatientUpdate should allow partial updates.
+
+The API must never rely only on Vapi/LLM validation.
+
+Backend validation is authoritative.
+
+---
+
+# 10. API RESPONSE ENVELOPE
+
+Successful responses must follow:
+
+{
+"data": {...},
+"error": null
+}
+
+Errors should follow:
+
+{
+"data": null,
+"error": {
+"message": "...",
+"details": ...
+}
+}
+
+Keep the response structure consistent.
+
+---
+
+# 11. REST API
+
+Implement:
+
+## GET /patients
+
+Return all active/non-deleted patients.
+
+Support optional query parameters:
+
+last_name
+date_of_birth
+phone_number
+
+Example:
+
+GET /patients?last_name=Smith
+
+Example:
+
+GET /patients?phone_number=4155551234
+
+Deleted records should normally not appear in standard listing.
+
+---
+
+## GET /patients/{id}
+
+Retrieve a patient by UUID.
+
+Return:
+
+200 if found.
+
+404 if not found.
+
+Deleted records should not normally be returned as active records.
+
+---
+
+## POST /patients
+
+Create a patient.
+
+Validate the request.
+
+Generate:
+
+patient_id
+created_at
+updated_at
+
+Return:
+
+201 Created
+
+with the created patient in:
+
+data
+
+---
+
+## PUT /patients/{id}
+
+Allow partial updates.
+
+Update:
+
+updated_at
+
+Do not modify:
+
+patient_id
+created_at
+
+unless there is a compelling reason.
+
+Return:
+
+200 if successful.
+
+404 if patient does not exist.
+
+---
+
+## DELETE /patients/{id}
+
+Perform a SOFT DELETE.
+
+Set:
+
+deleted_at = current UTC timestamp
+
+Do not physically remove the database row.
+
+Return:
+
+200
+
+with appropriate confirmation/data.
+
+---
+
+# 12. HTTP STATUS CODES
+
+Use appropriate status codes:
+
+200:
+successful retrieval/update/delete
+
+201:
+successful creation
+
+400:
+bad request
+
+404:
+resource not found
+
+422:
+validation failure
+
+500:
+unexpected server error
+
+FastAPI/Pydantic validation should be used where appropriate.
+
+Do not expose internal stack traces to callers.
+
+---
+
+# 13. SERVICE LAYER
+
+Create:
+
+app/services/patient_service.py
+
+Put business logic here.
+
+Examples:
+
+create_patient()
+get_patient()
+list_patients()
+update_patient()
+soft_delete_patient()
+find_patient_by_phone()
+
+The API route should not contain all database/business logic.
+
+Example flow:
+
+POST /patients
+↓
+patients.py
+↓
+patient_service.create_patient()
+↓
+SQLAlchemy
+↓
+SQLite
+
+This keeps the architecture understandable.
+
+---
+
+# 14. DUPLICATE DETECTION
+
+Implement duplicate detection if time permits.
+
+Primary matching signal:
+
+phone_number
+
+If a patient already exists with the same phone number:
+
+do not blindly create a second patient.
+
+For the voice flow:
+
+"Is this the same information you registered previously, or would you like to update it?"
+
+For the assessment's core implementation, duplicate detection can be simple.
+
+Do not spend excessive time creating a sophisticated identity-matching system.
+
+---
+
+# 15. VOICE AGENT
+
+Create:
+
+voice/system_prompt.md
+
+The prompt must define the complete behavior of the patient registration assistant.
+
+The agent's personality should be:
+
+* professional
+* friendly
+* concise
+* calm
+* natural
+* efficient
+
+Avoid sounding like a rigid IVR.
+
+---
+
+# 16. VOICE CONVERSATION FLOW
+
+Recommended flow:
+
+1. Greeting
+
+Example:
+
+"Hello, I'm the patient registration assistant. I can help collect your basic information. It'll only take a few minutes. Shall we get started?"
+
+2. Collect required information naturally.
+
+Do not necessarily ask fields in a rigid sequence if the caller volunteers information.
+
+For example:
+
+Caller:
+
+"I'm John Smith, born March 12th 1990, and my phone is 415-555-1234."
+
+The agent should extract the corresponding fields.
+
+3. Ask only for missing information.
+
+4. Validate information.
+
+5. Handle corrections.
+
+6. Offer optional information.
+
+7. Summarize everything.
+
+8. Ask for explicit confirmation.
+
+9. Only after confirmation invoke create-patient API.
+
+10. Tell caller registration succeeded.
+
+---
+
+# 17. REQUIRED VOICE FIELDS
+
+The agent must collect:
+
+first_name
+last_name
+date_of_birth
+sex
+phone_number
+address_line_1
+city
+state
+zip_code
+
+Optional:
+
+email
+address_line_2
+insurance_provider
+insurance_member_id
+preferred_language
+emergency_contact_name
+emergency_contact_phone
+
+---
+
+# 18. VALIDATION BEHAVIOR
+
+Validation should happen at two levels.
+
+## Level 1 — Conversational validation
+
+The LLM should detect obvious invalid input.
+
+Example:
+
+Caller:
+"My phone number is 123."
+
+Agent:
+
+"That doesn't appear to be a complete U.S. phone number. Could you provide your 10-digit phone number?"
+
+Do not proceed with invalid information.
+
+---
+
+## Level 2 — Backend validation
+
+FastAPI/Pydantic must independently validate everything.
+
+Never trust data simply because the LLM produced it.
+
+This is critical.
+
+---
+
+# 19. REQUIRED EDGE CASES
+
+Implement at least these:
+
+## Invalid phone
+
+Caller gives:
+
+"123"
+
+Agent requests the field again.
+
+---
+
+## Future DOB
+
+Caller gives a future date.
+
+Agent says the date appears to be invalid because it is in the future and asks again.
+
+---
+
+## Incorrect state
+
+Caller says:
+
+"California"
+
+Agent can normalize it to CA if unambiguous.
+
+If ambiguous:
+
+ask clarification.
+
+---
+
+## Caller corrects information
+
+Caller:
+
+"My last name is Smith."
+
+Later:
+
+"Actually, sorry, it's Smyth."
+
+The latest confirmed value should replace the previous value.
+
+---
+
+## Caller gives information out of order
+
+Caller:
+
+"I'm John Smith. I live in New York. My birthday is..."
+
+Agent should store known information and continue asking for missing fields.
+
+---
+
+## Caller wants to start over
+
+Provide a natural restart path.
+
+Example:
+
+"Sure. Let's start over."
+
+Clear temporary conversation state.
+
+Do not delete an already-created database record unless explicitly required.
+
+---
+
+## Database failure
+
+If POST /patients fails:
+
+Do not tell the caller registration succeeded.
+
+Say something like:
+
+"I'm sorry, I wasn't able to save your registration right now. Please try again later."
+
+Log the technical failure.
+
+---
+
+## Call disconnect
+
+If the caller disconnects before confirmation:
+
+Do not create the patient record.
+
+If they disconnect after successful persistence:
+
+the record should remain.
+
+---
+
+# 20. CONFIRMATION IS MANDATORY
+
+Never call POST /patients before explicit confirmation.
+
+Before saving, summarize:
+
+* first name
+* last name
+* date of birth
+* sex
+* phone
+* address
+* city
+* state
+* ZIP
+* optional fields collected
+
+Then ask:
+
+"Does everything I've read back sound correct?"
+
+Only:
+
+"Yes"
+
+or an equivalent affirmative confirmation should trigger persistence.
+
+If caller says something is wrong:
+
+identify the incorrect field and correct it.
+
+Then repeat confirmation.
+
+---
+
+# 21. VAPI API REQUEST TOOL
+
+Configure a Vapi API Request Tool for:
+
+POST /patients
+
+The tool should send the structured patient data to:
+
+https://YOUR-BACKEND-DOMAIN/patients
+
+The tool must only be called after explicit confirmation.
+
+The API response should contain:
+
+patient_id
+and patient information/status.
+
+The assistant should use the response to determine whether saving succeeded.
+
+---
+
+# 22. VAPI PROMPT SAFETY RULE
+
+The system prompt should explicitly state:
+
+DO NOT call create_patient until:
+
+1. all required fields have been collected;
+2. invalid fields have been corrected;
+3. the complete information has been read back;
+4. the caller explicitly confirms.
+
+This should be one of the most prominent instructions in the prompt.
+
+---
+
+# 23. EXISTING PATIENT FLOW
+
+When a caller calls again:
+
+Use the caller's phone number as the primary lookup signal if available.
+
+Call:
+
+GET /patients?phone_number=...
+
+If a matching active patient exists:
+
+say something similar to:
+
+"I found an existing registration associated with this number. Would you like to confirm your existing information or update it?"
+
+If they want to update:
+
+collect changed information.
+
+Confirm the complete updated information.
+
+Call:
+
+PUT /patients/{id}
+
+If no matching patient exists:
+
+start a new registration.
+
+Keep this flow simple.
+
+---
+
+# 24. LOGGING
+
+Implement useful stdout logging.
+
+At minimum log:
+
+* request method/path
+* API errors
+* patient creation
+* patient update
+* soft deletion
+* final collected patient payload before/after successful persistence, while avoiding unnecessary sensitive data exposure
+
+The assessment explicitly requires observability and at minimum the final collected data payload to be logged.
+
+Do not log secrets.
+
+---
+
+# 25. SECURITY
+
+Use environment variables.
+
+Never hardcode:
+
+VAPI API key
+API credentials
+secrets
+
+Use:
+
+.env
+
+and:
+
+.env.example
+
+Do not commit `.env`.
+
+Validate API input.
+
+Do not expose internal exceptions.
+
+Do not use real patient information during testing.
+
+The assessment explicitly states that this is not intended to be a production HIPAA healthcare system and real patient data should not be stored.
+
+---
+
+# 26. TESTING
+
+Create:
+
+tests/test_patients.py
+
+At minimum test:
+
+1. Create valid patient.
+2. Reject invalid first name.
+3. Reject invalid last name.
+4. Reject future DOB.
+5. Reject invalid sex.
+6. Reject invalid phone.
+7. Reject invalid state.
+8. Reject invalid ZIP.
+9. Create patient returns UUID.
+10. Retrieve patient.
+11. List patients.
+12. Update patient.
+13. Soft delete patient.
+14. Deleted patient does not appear in active list.
+15. Duplicate phone detection if implemented.
+
+Also manually test the actual deployed API.
+
+---
+
+# 27. VOICE TEST SCENARIOS
+
+Before submission, manually perform these calls.
+
+## Test 1 — Normal registration
+
+Provide all required information normally.
+
+Expected:
+
+patient created.
+
+---
+
+## Test 2 — Information out of order
+
+Give:
+
+name
+phone
+DOB
+address
+
+in random order.
+
+Expected:
+
+agent handles naturally.
+
+---
+
+## Test 3 — Invalid phone
+
+Say:
+
+"My phone number is 123."
+
+Expected:
+
+specific re-prompt.
+
+---
+
+## Test 4 — Future DOB
+
+Give a future DOB.
+
+Expected:
+
+specific re-prompt.
+
+---
+
+## Test 5 — Correction
+
+Provide incorrect last name and correct it later.
+
+Expected:
+
+corrected value persists.
+
+---
+
+## Test 6 — Optional fields declined
+
+Decline insurance/emergency contact.
+
+Expected:
+
+registration continues.
+
+---
+
+## Test 7 — Confirmation correction
+
+During readback say:
+
+"No, my ZIP code is 90211."
+
+Expected:
+
+agent updates ZIP and reconfirms.
+
+---
+
+## Test 8 — Start over
+
+Say:
+
+"I want to start over."
+
+Expected:
+
+temporary registration state resets.
+
+---
+
+## Test 9 — Second call
+
+Call again using the same phone number.
+
+Expected:
+
+existing patient can be recognized.
+
+---
+
+## Test 10 — API failure
+
+Temporarily make backend unavailable.
+
+Expected:
+
+agent does not claim successful registration.
+
+---
+
+# 28. DEPLOYMENT
+
+Deploy FastAPI to a platform such as:
+
+Railway
+Render
+Fly.io
+or another suitable service.
+
+The backend must be publicly accessible.
+
+Example:
+
+https://your-app.example.com
+
+Verify:
+
+/docs
+
+works publicly.
+
+Then configure Vapi to use the deployed HTTPS endpoint.
+
+Do not use localhost for the final Vapi integration.
+
+---
+
+# 29. PHONE NUMBER
+
+Provision a real U.S. phone number through Vapi or its supported telephony integration.
+
+Associate the number with the patient registration assistant.
+
+Test:
+
+external phone → Vapi → assistant → API → database
+
+Do not consider the project complete until this end-to-end path works.
+
+---
+
+# 30. README
+
+README must include:
+
+## Project overview
+
+What the system does.
+
+## Architecture
+
+Explain:
+
+Caller
+→ Vapi
+→ FastAPI
+→ SQLite
+
+## Tech stack
+
+Explain why each technology was selected.
+
+## Local setup
+
+Include:
+
+Python version
+virtual environment
+pip install
+.env
+run command
+
+## Environment variables
+
+Document:
+
+DATABASE_URL
+VAPI_API_KEY
+other required variables
+
+Never include actual secrets.
+
+## API endpoints
+
+Document every endpoint.
+
+## Vapi configuration
+
+Explain:
+
+assistant
+system prompt
+API Request Tool
+phone number
+backend URL
+
+## Testing
+
+Explain automated tests and manual voice tests.
+
+## Deployment
+
+Explain deployment process.
+
+## Tradeoffs
+
+Explain why:
+
+Vapi
+FastAPI
+SQLite
+
+were selected.
+
+## Limitations
+
+Examples:
+
+* not a production HIPAA system
+* no authentication if not implemented
+* SQLite limitations
+* basic duplicate detection
+* optional multilingual support not implemented
+
+## Future improvements
+
+Examples:
+
+* PostgreSQL
+* authentication
+* advanced audit logging
+* multilingual support
+* dashboard
+* appointment scheduling
+* call recording/transcription linkage
+
+---
+
+# 31. OPTIONAL BONUSES
+
+Only implement bonuses after the core system works.
+
+Priority:
+
+1. Duplicate detection
+2. Automated API tests
+3. Existing-patient update flow
+4. Call transcript linkage
+5. Multilingual support
+6. Appointment scheduling
+7. Dashboard
+
+Do not sacrifice core functionality for bonuses.
+
+---
+
+# 32. THINGS NOT TO IMPLEMENT
+
+Do NOT build:
+
+* custom STT
+* custom TTS
+* custom telephony infrastructure
+* multi-agent architecture
+* RAG
+* vector database
+* Kubernetes
+* Redis
+* Celery
+* React frontend
+* complex authentication
+* HIPAA compliance system
+* payment system
+* production appointment scheduling
+* unnecessary microservices
+
+The assessment specifically says the goal is integration under time pressure rather than a production healthcare platform.
+
+---
+
+# 33. DEVELOPMENT ORDER
+
+Implement in exactly this order.
+
+## Phase 1 — Environment
+
+Create:
+
+* project
+* virtual environment
+* requirements
+* folders
+* FastAPI app
+* .env
+* .gitignore
+* README
+
+Verify:
+
+GET /
+
+---
+
+## Phase 2 — Database
+
+Implement:
+
+database.py
+models.py
+Patient model
+
+Verify:
+
+database starts
+tables created
+record can be persisted
+
+---
+
+## Phase 3 — Pydantic Validation
+
+Implement:
+
+PatientCreate
+PatientUpdate
+PatientResponse
+
+Verify:
+
+invalid data rejected.
+
+---
+
+## Phase 4 — Patient Service
+
+Implement:
+
+create
+read
+list
+update
+soft delete
+phone lookup
+
+Verify business logic independently.
+
+---
+
+## Phase 5 — REST API
+
+Implement:
+
+GET /patients
+GET /patients/{id}
+POST /patients
+PUT /patients/{id}
+DELETE /patients/{id}
+
+Verify:
+
+status codes
+response envelope
+validation
+errors
+
+---
+
+## Phase 6 — Automated API Tests
+
+Implement tests.
+
+Run:
+
+pytest
+
+Fix failures before moving on.
+
+---
+
+## Phase 7 — Deployment
+
+Deploy FastAPI.
+
+Verify:
+
+public /docs
+
+Verify:
+
+public API endpoints.
+
+---
+
+## Phase 8 — Vapi Assistant
+
+Create assistant.
+
+Configure:
+
+system prompt
+model
+voice
+first message
+server/API configuration
+
+---
+
+## Phase 9 — Vapi API Tool
+
+Configure:
+
+create_patient
+
+Point it to:
+
+POST /patients
+
+Verify tool schema exactly matches backend schema.
+
+---
+
+## Phase 10 — Phone Number
+
+Attach real U.S. phone number.
+
+Call it.
+
+Verify:
+
+phone → agent.
+
+---
+
+## Phase 11 — End-to-End Integration
+
+Test:
+
+phone
+→ conversation
+→ validation
+→ confirmation
+→ API
+→ database
+→ success response
+
+---
+
+## Phase 12 — Existing Patient
+
+Implement:
+
+phone lookup
+existing patient recognition
+update flow
+
+---
+
+## Phase 13 — Edge Cases
+
+Test:
+
+invalid DOB
+invalid phone
+correction
+out-of-order information
+start over
+disconnect
+database failure
+
+---
+
+## Phase 14 — Documentation
+
+Finish README.
+
+Document:
+
+architecture
+setup
+environment variables
+Vapi
+API
+testing
+deployment
+tradeoffs
+limitations
+
+---
+
+## Phase 15 — Final Review
+
+Verify:
+
+[ ] real phone number works
+[ ] registration works
+[ ] database persists
+[ ] API works
+[ ] second call works
+[ ] confirmation occurs before saving
+[ ] invalid data re-prompts
+[ ] corrections work
+[ ] start over works
+[ ] DB failures handled
+[ ] no secrets committed
+[ ] README complete
+[ ] repository clean
+[ ] deployment accessible
+
+---
+
+# 34. TIME MANAGEMENT
+
+The original assessment has a maximum duration of three hours.
+
+Use this approximate allocation:
+
+00:00–00:15
+Environment + project skeleton
+
+00:15–00:45
+Database + model + validation
+
+00:45–01:15
+REST API
+
+01:15–01:30
+API tests + deployment
+
+01:30–02:00
+Vapi assistant + prompt
+
+02:00–02:20
+Vapi API tool + phone number
+
+02:20–02:40
+End-to-end testing
+
+02:40–02:50
+Edge cases
+
+02:50–03:00
+README + submission
+
+If something fails, prioritize:
+
+1. Phone call works
+2. Patient registration works
+3. Database persistence works
+4. REST API works
+5. Confirmation works
+6. Invalid input works
+7. Second call works
+8. Documentation
+9. Bonuses
+
+---
+
+# 35. IMPORTANT IMPLEMENTATION RULES FOR CODEX / ANTIGRAVITY
+
+You are implementing a technical assessment.
+
+Do not blindly generate the entire project without verifying each component.
+
+Follow this sequence.
+
+After each phase:
+
+1. Implement.
+2. Run tests.
+3. Start the application.
+4. Verify functionality.
+5. Fix errors.
+6. Report what was changed.
+7. Move to the next phase.
+
+Do not silently change requirements.
+
+Do not introduce technologies that are not necessary.
+
+Do not hardcode secrets.
+
+Do not use fake successful API responses.
+
+Do not mock the database for the actual application.
+
+Do not claim the phone integration works unless it has actually been tested.
+
+If a Vapi API or configuration differs from the instructions because of the current Vapi API, use the current official Vapi documentation and explain the change.
+
+Keep the implementation understandable enough that the candidate can explain every major architectural decision during an interview.
+
+---
+
+# 36. DEFINITION OF DONE
+
+The project is complete only when:
+
+A reviewer can call the real U.S. phone number.
+
+The AI agent naturally collects the required patient information.
+
+The agent handles corrections and invalid information.
+
+The agent confirms the complete information.
+
+The confirmed information is sent to FastAPI.
+
+FastAPI validates it.
+
+SQLite persists it.
+
+The API can retrieve it.
+
+The caller can call again.
+
+The existing record can be recognized.
+
+The API is publicly accessible.
+
+The repository contains clear documentation.
+
+No secrets are committed.
+
+The candidate can explain the architecture and implementation decisions.
