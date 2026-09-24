@@ -128,7 +128,8 @@ class PatientCreate(BaseModel):
     zip_code: str
 
     # Optional
-    email: Optional[EmailStr] = None
+    # Optional
+    email: Optional[str] = Field(default=None, max_length=255)
     address_line_2: Optional[str] = Field(default=None, max_length=255)
     insurance_provider: Optional[str] = Field(default=None, max_length=100)
     insurance_member_id: Optional[str] = Field(default=None, max_length=50)
@@ -185,19 +186,49 @@ class PatientCreate(BaseModel):
     def validate_zip(cls, v: str) -> str:
         return _validate_zip(v)
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if not v or not isinstance(v, str) or not v.strip():
+            return None
+        v = v.strip()
+        from email_validator import validate_email as val_email, EmailNotValidError
+        try:
+            res = val_email(v, check_deliverability=False)
+            return res.normalized
+        except EmailNotValidError as e:
+            raise ValueError(f"Invalid email address: {e}")
+
+    @field_validator("address_line_2", "insurance_provider", "emergency_contact_name")
+    @classmethod
+    def validate_empty_optional_str(cls, v: Optional[str]) -> Optional[str]:
+        if not v or not isinstance(v, str) or not v.strip():
+            return None
+        return v.strip()
+
+    @field_validator("preferred_language")
+    @classmethod
+    def validate_preferred_language(cls, v: Optional[str]) -> Optional[str]:
+        if not v or not isinstance(v, str) or not v.strip():
+            return "English"
+        return v.strip()
+
     @field_validator("insurance_member_id")
     @classmethod
     def validate_insurance_member_id(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and not _ALNUM_RE.match(v):
+        if not v or not isinstance(v, str) or not v.strip():
+            return None
+        v = v.strip()
+        if not _ALNUM_RE.match(v):
             raise ValueError("insurance_member_id must be alphanumeric.")
         return v
 
     @field_validator("emergency_contact_phone")
     @classmethod
     def validate_emergency_phone(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None:
-            return _normalize_phone(v)
-        return v
+        if not v or not isinstance(v, str) or not v.strip():
+            return None
+        return _normalize_phone(v)
 
 
 # ── PatientUpdate ─────────────────────────────────────────────────────────────
@@ -214,7 +245,7 @@ class PatientUpdate(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
     zip_code: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = Field(default=None, max_length=255)
     address_line_2: Optional[str] = None
     insurance_provider: Optional[str] = None
     insurance_member_id: Optional[str] = None
@@ -270,17 +301,42 @@ class PatientUpdate(BaseModel):
     def validate_zip(cls, v: Optional[str]) -> Optional[str]:
         return _validate_zip(v) if v is not None else v
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if not v or not isinstance(v, str) or not v.strip():
+            return None
+        v = v.strip()
+        from email_validator import validate_email as val_email, EmailNotValidError
+        try:
+            res = val_email(v, check_deliverability=False)
+            return res.normalized
+        except EmailNotValidError as e:
+            raise ValueError(f"Invalid email address: {e}")
+
+    @field_validator("address_line_2", "insurance_provider", "emergency_contact_name")
+    @classmethod
+    def validate_empty_optional_str(cls, v: Optional[str]) -> Optional[str]:
+        if not v or not isinstance(v, str) or not v.strip():
+            return None
+        return v.strip()
+
     @field_validator("insurance_member_id")
     @classmethod
     def validate_insurance_member_id(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and not _ALNUM_RE.match(v):
+        if not v or not isinstance(v, str) or not v.strip():
+            return None
+        v = v.strip()
+        if not _ALNUM_RE.match(v):
             raise ValueError("insurance_member_id must be alphanumeric.")
         return v
 
     @field_validator("emergency_contact_phone")
     @classmethod
     def validate_emergency_phone(cls, v: Optional[str]) -> Optional[str]:
-        return _normalize_phone(v) if v is not None else v
+        if not v or not isinstance(v, str) or not v.strip():
+            return None
+        return _normalize_phone(v)
 
 
 # ── PatientResponse ───────────────────────────────────────────────────────────
